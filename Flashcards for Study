@@ -1,0 +1,367 @@
+import { useState, useEffect } from 'react'
+import { Button } from "/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "/components/ui/card"
+import { Input } from "/components/ui/input"
+import { Label } from "/components/ui/label"
+import { Moon, Sun } from "lucide-react"
+
+type Flashcard = {
+  id: string
+  question: string
+  answer: string
+}
+
+type Deck = {
+  id: string
+  name: string
+  description: string
+  flashcards: Flashcard[]
+}
+
+export default function Flashcards() {
+  const [decks, setDecks] = useState<Deck[]>([])
+  const [currentDeckId, setCurrentDeckId] = useState<string | null>(null)
+  const [isReviewing, setIsReviewing] = useState(false)
+  const [currentCardIndex, setCurrentCardIndex] = useState(0)
+  const [isFlipped, setIsFlipped] = useState(false)
+  const [darkMode, setDarkMode] = useState(false)
+  const [newDeck, setNewDeck] = useState({
+    name: '',
+    description: ''
+  })
+  const [newFlashcard, setNewFlashcard] = useState({
+    question: '',
+    answer: ''
+  })
+  const [editingFlashcard, setEditingFlashcard] = useState<Flashcard | null>(null)
+
+  // Load decks from localStorage on initial render
+  useEffect(() => {
+    const savedDecks = localStorage.getItem('flashcardDecks')
+    if (savedDecks) {
+      setDecks(JSON.parse(savedDecks))
+    }
+  }, [])
+
+  // Save decks to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('flashcardDecks', JSON.stringify(decks))
+  }, [decks])
+
+  const createDeck = () => {
+    if (!newDeck.name.trim()) return
+    
+    const deck: Deck = {
+      id: Date.now().toString(),
+      name: newDeck.name,
+      description: newDeck.description,
+      flashcards: []
+    }
+    
+    setDecks([...decks, deck])
+    setNewDeck({ name: '', description: '' })
+  }
+
+  const addFlashcard = () => {
+    if (!newFlashcard.question.trim() || !newFlashcard.answer.trim()) return
+    
+    const flashcard: Flashcard = {
+      id: Date.now().toString(),
+      question: newFlashcard.question,
+      answer: newFlashcard.answer
+    }
+    
+    setDecks(decks.map(deck => 
+      deck.id === currentDeckId 
+        ? { ...deck, flashcards: [...deck.flashcards, flashcard] }
+        : deck
+    ))
+    
+    setNewFlashcard({ question: '', answer: '' })
+  }
+
+  const updateFlashcard = () => {
+    if (!editingFlashcard || !editingFlashcard.question.trim() || !editingFlashcard.answer.trim()) return
+    
+    setDecks(decks.map(deck => 
+      deck.id === currentDeckId 
+        ? { 
+          ...deck, 
+          flashcards: deck.flashcards.map(card => 
+            card.id === editingFlashcard.id ? editingFlashcard : card
+          ) 
+        }
+        : deck
+    ))
+    
+    setEditingFlashcard(null)
+  }
+
+  const deleteFlashcard = (flashcardId: string) => {
+    setDecks(decks.map(deck => 
+      deck.id === currentDeckId 
+        ? { 
+          ...deck, 
+          flashcards: deck.flashcards.filter(card => card.id !== flashcardId) 
+        }
+        : deck
+    ))
+  }
+
+  const deleteDeck = (deckId: string) => {
+    setDecks(decks.filter(deck => deck.id !== deckId))
+    if (currentDeckId === deckId) {
+      setCurrentDeckId(null)
+    }
+  }
+
+  const startReview = () => {
+    setIsReviewing(true)
+    setCurrentCardIndex(0)
+    setIsFlipped(false)
+  }
+
+  const nextCard = () => {
+    const currentDeck = decks.find(deck => deck.id === currentDeckId)
+    if (!currentDeck) return
+    
+    if (currentCardIndex < currentDeck.flashcards.length - 1) {
+      setCurrentCardIndex(currentCardIndex + 1)
+      setIsFlipped(false)
+    } else {
+      setIsReviewing(false)
+    }
+  }
+
+  const currentDeck = decks.find(deck => deck.id === currentDeckId)
+
+  return (
+    <div className={`min-h-screen ${darkMode ? 'dark bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">Flashcards</h1>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={() => setDarkMode(!darkMode)}
+            aria-label="Toggle dark mode"
+          >
+            {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
+        </div>
+
+        {!currentDeckId && !isReviewing && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create New Deck</CardTitle>
+                <CardDescription>Organize your flashcards into decks</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="deck-name">Deck Name</Label>
+                    <Input
+                      id="deck-name"
+                      value={newDeck.name}
+                      onChange={(e) => setNewDeck({...newDeck, name: e.target.value})}
+                      placeholder="Enter deck name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="deck-description">Description (Optional)</Label>
+                    <Input
+                      id="deck-description"
+                      value={newDeck.description}
+                      onChange={(e) => setNewDeck({...newDeck, description: e.target.value})}
+                      placeholder="Enter description"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button onClick={createDeck}>Create Deck</Button>
+              </CardFooter>
+            </Card>
+
+            {decks.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Your Decks</CardTitle>
+                  <CardDescription>Select a deck to view or edit</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {decks.map(deck => (
+                      <div key={deck.id} className="flex justify-between items-center p-4 border rounded-lg">
+                        <div>
+                          <h3 className="font-medium">{deck.name}</h3>
+                          {deck.description && <p className="text-sm text-muted-foreground">{deck.description}</p>}
+                          <p className="text-sm">{deck.flashcards.length} cards</p>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setCurrentDeckId(deck.id)}
+                          >
+                            Open
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            onClick={() => deleteDeck(deck.id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {currentDeckId && !isReviewing && currentDeck && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold">{currentDeck.name}</h2>
+                {currentDeck.description && <p className="text-muted-foreground">{currentDeck.description}</p>}
+              </div>
+              <div className="flex space-x-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setCurrentDeckId(null)}
+                >
+                  Back to Decks
+                </Button>
+                {currentDeck.flashcards.length > 0 && (
+                  <Button onClick={startReview}>Review Deck</Button>
+                )}
+              </div>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>{editingFlashcard ? 'Edit Flashcard' : 'Add New Flashcard'}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="question">Question</Label>
+                    <Input
+                      id="question"
+                      value={editingFlashcard ? editingFlashcard.question : newFlashcard.question}
+                      onChange={(e) => 
+                        editingFlashcard 
+                          ? setEditingFlashcard({...editingFlashcard, question: e.target.value})
+                          : setNewFlashcard({...newFlashcard, question: e.target.value})
+                      }
+                      placeholder="Enter question"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="answer">Answer</Label>
+                    <Input
+                      id="answer"
+                      value={editingFlashcard ? editingFlashcard.answer : newFlashcard.answer}
+                      onChange={(e) => 
+                        editingFlashcard 
+                          ? setEditingFlashcard({...editingFlashcard, answer: e.target.value})
+                          : setNewFlashcard({...newFlashcard, answer: e.target.value})
+                      }
+                      placeholder="Enter answer"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                {editingFlashcard ? (
+                  <div className="flex space-x-2">
+                    <Button onClick={updateFlashcard}>Update Flashcard</Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setEditingFlashcard(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <Button onClick={addFlashcard}>Add Flashcard</Button>
+                )}
+              </CardFooter>
+            </Card>
+
+            {currentDeck.flashcards.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Flashcards in this Deck</CardTitle>
+                  <CardDescription>{currentDeck.flashcards.length} cards</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {currentDeck.flashcards.map(card => (
+                      <div key={card.id} className="flex justify-between items-center p-4 border rounded-lg">
+                        <div>
+                          <p className="font-medium">{card.question}</p>
+                          <p className="text-sm text-muted-foreground">{card.answer}</p>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setEditingFlashcard(card)}
+                          >
+                            Edit
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            onClick={() => deleteFlashcard(card.id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {isReviewing && currentDeck && (
+          <div className="flex flex-col items-center">
+            <div 
+              className="w-full max-w-md h-64 p-6 border rounded-lg shadow-lg cursor-pointer mb-6 flex items-center justify-center text-center"
+              onClick={() => setIsFlipped(!isFlipped)}
+            >
+              {isFlipped ? (
+                <p className="text-xl">{currentDeck.flashcards[currentCardIndex].answer}</p>
+              ) : (
+                <p className="text-xl">{currentDeck.flashcards[currentCardIndex].question}</p>
+              )}
+            </div>
+            <div className="flex space-x-4">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setIsReviewing(false)
+                  setCurrentDeckId(currentDeck.id)
+                }}
+              >
+                Exit Review
+              </Button>
+              <Button onClick={nextCard}>
+                {currentCardIndex < currentDeck.flashcards.length - 1 ? 'Next Card' : 'Finish'}
+              </Button>
+            </div>
+            <div className="mt-4 text-muted-foreground">
+              Card {currentCardIndex + 1} of {currentDeck.flashcards.length}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
